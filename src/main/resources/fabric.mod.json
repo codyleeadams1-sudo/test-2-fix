@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "quickmenu",
+  "version": "${version}",
+  "name": "Quick Menu",
+  "description": "Press a key to open a command menu for singleplayer or your own server.",
+  "environment": "client",
+  "entrypoints": { "client": ["com.example.quickmenu.QuickMenuClient"] },
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "~26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}
