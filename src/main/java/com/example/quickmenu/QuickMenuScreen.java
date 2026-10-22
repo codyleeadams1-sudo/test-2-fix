@@ -8,11 +8,37 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.chat.Component;
 
-/**
- * A simple menu that runs normal Minecraft commands.
- * Works in singleplayer with cheats on, or on a server where you are an operator.
- */
+/** Tabbed command menu. Sends normal commands (cheats/op required). */
 public class QuickMenuScreen extends Screen {
+    private record Cmd(String label, String command) {}
+
+    private static final String[] TABS = {"World", "Player", "Items", "Build", "Console"};
+
+    private static final Cmd[][] PAGES = {
+        { // World
+            new Cmd("Day", "time set day"), new Cmd("Night", "time set night"),
+            new Cmd("Noon", "time set noon"), new Cmd("Clear weather", "weather clear"),
+            new Cmd("Rain", "weather rain"), new Cmd("Thunder", "weather thunder")
+        },
+        { // Player
+            new Cmd("Creative", "gamemode creative"), new Cmd("Survival", "gamemode survival"),
+            new Cmd("Spectator", "gamemode spectator"), new Cmd("Heal", "effect give @s instant_health 1 5"),
+            new Cmd("Night vision", "effect give @s night_vision 600 0 true"), new Cmd("Speed", "effect give @s speed 600 2 true")
+        },
+        { // Items
+            new Cmd("Diamond sword", "give @s diamond_sword"), new Cmd("Diamond pickaxe", "give @s diamond_pickaxe"),
+            new Cmd("Diamond axe", "give @s diamond_axe"), new Cmd("Cooked beef x64", "give @s cooked_beef 64"),
+            new Cmd("Torches x64", "give @s torch 64"), new Cmd("Elytra", "give @s elytra")
+        },
+        { // Build
+            new Cmd("Stone platform", "fill ~-5 ~-1 ~-5 ~5 ~-1 ~5 stone"), new Cmd("Glass box", "fill ~-3 ~ ~-3 ~3 ~4 ~3 glass hollow"),
+            new Cmd("Stone tower", "fill ~-2 ~ ~-2 ~2 ~15 ~2 stone_bricks hollow"), new Cmd("Clear area", "fill ~-5 ~ ~-5 ~5 ~6 ~5 air"),
+            new Cmd("Water pool", "fill ~-3 ~-1 ~-3 ~3 ~-1 ~3 water"), new Cmd("Wood floor", "fill ~-5 ~-1 ~-5 ~5 ~-1 ~5 oak_planks")
+        },
+        {} // Console
+    };
+
+    private static int tab = 0; // remembered between opens
     private EditBox customField;
 
     public QuickMenuScreen() {
@@ -21,70 +47,71 @@ public class QuickMenuScreen extends Screen {
 
     private void run(String command) {
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection != null) {
-            connection.sendCommand(command);
-        }
+        if (connection != null) connection.sendCommand(command);
     }
 
-    private void addCmd(String label, String command, int col, int row) {
-        int w = 110, h = 20, gap = 6;
-        int totalW = 3 * w + 2 * gap;
-        int x = (this.width - totalW) / 2 + col * (w + gap);
-        int y = 40 + row * (h + gap);
-        this.addRenderableWidget(Button.builder(Component.literal(label), b -> run(command))
-                .bounds(x, y, w, h).build());
-    }
+    private int pw() { return 340; }
+    private int ph() { return 190; }
+    private int px() { return (this.width - pw()) / 2; }
+    private int py() { return (this.height - ph()) / 2; }
 
     @Override
     protected void init() {
-        // World
-        addCmd("Day", "time set day", 0, 0);
-        addCmd("Night", "time set night", 1, 0);
-        addCmd("Clear weather", "weather clear", 2, 0);
+        int px = px(), py = py();
+        int sideW = 84;
 
-        // Game mode
-        addCmd("Creative", "gamemode creative", 0, 1);
-        addCmd("Survival", "gamemode survival", 1, 1);
-        addCmd("Spectator", "gamemode spectator", 2, 1);
+        // Sidebar tabs
+        for (int i = 0; i < TABS.length; i++) {
+            final int idx = i;
+            Button b = Button.builder(Component.literal(TABS[i]), x -> { tab = idx; this.rebuildWidgets(); })
+                    .bounds(px + 8, py + 34 + i * 24, sideW - 12, 20).build();
+            b.active = (tab != i);
+            this.addRenderableWidget(b);
+        }
 
-        // Items
-        addCmd("Diamond sword", "give @s diamond_sword", 0, 2);
-        addCmd("Diamond pickaxe", "give @s diamond_pickaxe", 1, 2);
-        addCmd("Cooked beef x64", "give @s cooked_beef 64", 2, 2);
+        int cx = px + sideW + 10;
+        int cw = pw() - sideW - 18;
+        int bw = (cw - 6) / 2;
 
-        // Player
-        addCmd("Heal", "effect give @s instant_health 1 5", 0, 3);
-        addCmd("Night vision", "effect give @s night_vision 600 0 true", 1, 3);
-        addCmd("Speed", "effect give @s speed 600 2 true", 2, 3);
-
-        // Quick builds (relative to where you stand)
-        addCmd("Stone platform", "fill ~-5 ~-1 ~-5 ~5 ~-1 ~5 stone", 0, 4);
-        addCmd("Glass box", "fill ~-3 ~ ~-3 ~3 ~4 ~3 glass hollow", 1, 4);
-        addCmd("Stone tower", "fill ~-2 ~ ~-2 ~2 ~15 ~2 stone_bricks hollow", 2, 4);
-
-        // Custom command box
-        int fieldW = 3 * 110 + 2 * 6 - 66;
-        int fx = (this.width - (fieldW + 66)) / 2;
-        int fy = 40 + 5 * 26 + 8;
-        customField = new EditBox(this.font, fx, fy, fieldW, 20, Component.literal("Command"));
-        customField.setMaxLength(256);
-        customField.setHint(Component.literal("any command, no slash"));
-        this.addRenderableWidget(customField);
-        this.addRenderableWidget(Button.builder(Component.literal("Run"), b -> {
-            String c = customField.getValue().trim();
-            if (c.startsWith("/")) c = c.substring(1);
-            if (!c.isEmpty()) run(c);
-        }).bounds(fx + fieldW + 6, fy, 60, 20).build());
+        if (tab < 4) {
+            Cmd[] page = PAGES[tab];
+            for (int i = 0; i < page.length; i++) {
+                final Cmd c = page[i];
+                int x = cx + (i % 2) * (bw + 6);
+                int y = py + 34 + (i / 2) * 26;
+                this.addRenderableWidget(Button.builder(Component.literal(c.label()), b -> run(c.command()))
+                        .bounds(x, y, bw, 20).build());
+            }
+        } else {
+            customField = new EditBox(this.font, cx, py + 38, cw, 20, Component.literal("Command"));
+            customField.setMaxLength(256);
+            customField.setHint(Component.literal("any command, no slash"));
+            this.addRenderableWidget(customField);
+            this.addRenderableWidget(Button.builder(Component.literal("Run command"), b -> {
+                String c = customField.getValue().trim();
+                if (c.startsWith("/")) c = c.substring(1);
+                if (!c.isEmpty()) run(c);
+            }).bounds(cx, py + 64, cw, 20).build());
+        }
 
         this.addRenderableWidget(Button.builder(Component.literal("Close"), b -> this.onClose())
-                .bounds(this.width / 2 - 50, fy + 30, 100, 20).build());
+                .bounds(px + 8, py + ph() - 28, sideW - 12, 20).build());
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        super.extractRenderState(graphics, mouseX, mouseY, delta);
-        String title = "Quick Menu";
-        graphics.text(this.font, title, (this.width - this.font.width(title)) / 2, 15, 0xFFFFFFFF, true);
+    public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
+        super.extractBackground(g, mouseX, mouseY, delta);
+        int px = px(), py = py();
+        int x2 = px + pw(), y2 = py + ph();
+
+        // Panel (drawn in the background pass so the buttons sit on top)
+        g.fill(px - 1, py - 1, x2 + 1, y2 + 1, 0xFF2B3440);   // border
+        g.fill(px, py, x2, y2, 0xE60F1318);                    // body
+        g.fill(px, py, px + 84 + 4, y2, 0xF0161B22);           // sidebar
+        g.fill(px, py, x2, py + 2, 0xFF4C9AFF);                // accent bar
+
+        g.text(this.font, "QUICK MENU", px + 10, py + 10, 0xFFFFFFFF, true);
+        g.text(this.font, TABS[tab], px + 84 + 10, py + 10, 0xFF8FB8FF, true);
     }
 
     @Override
