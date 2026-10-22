@@ -17,14 +17,14 @@ public class QuickMenuClient implements ClientModInitializer {
     public void onInitializeClient() {
         openKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.quickmenu.open",
-                InputConstants.Type.KEYSYM,
+                InputConstants.Type.KEYBOARD,
                 InputConstants.KEY_RSHIFT,
                 CATEGORY));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openKey.consumeClick()) {
-                if (client.player != null && client.screen == null) {
-                    client.setScreen(new QuickMenuScreen());
+                if (client.player != null && client.gui.screen() == null) {
+                    client.gui.setScreen(new QuickMenuScreen());
                 }
             }
         });
